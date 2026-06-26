@@ -363,23 +363,47 @@ export MULTI_THREAD_ENABLE=false
 
 ---
 
-# OOM (Memory Leak)
+# OOM (Memory Leak) 실험
 
 ## Before
 
 ```bash
 export MEMORY_LIMIT=256
+export CPU_MAX_OCCUPY=50
+export MULTI_THREAD_ENABLE=true
+
+./agent-leak-app-x86
 ```
 
-메모리가 지속적으로 증가하다가 MemoryGuard가 프로세스를 종료합니다.
+### 확인 결과
 
-### 📷 Memory 증가
+* Heap 메모리가 지속적으로 증가
+* 275MB에서 MemoryGuard 동작
+* SELF-TERMINATED 발생
 
-![OOM Memory Growth](screenshots/oom/01_memory_growth.png)
+주요 로그
 
-### 📷 SELF TERMINATED
+```
+Current Heap: 25MB
+Current Heap: 50MB
+Current Heap: 75MB
+...
+Current Heap: 275MB
 
-![OOM Self Terminated](screenshots/oom/02_self_terminated.png)
+Memory limit exceeded (275MB >= 256MB)
+
+SELF-TERMINATED
+```
+
+### 📷 OOM 종료 직전 로그
+
+![OOM Before](screenshots/oom/01_oom_before_self_terminated.png)
+
+---
+
+### 📷 monitor.sh 관제 결과
+
+![OOM Monitor](screenshots/oom/02_oom_monitor.png)
 
 ---
 
@@ -387,17 +411,31 @@ export MEMORY_LIMIT=256
 
 ```bash
 export MEMORY_LIMIT=512
+export MULTI_THREAD_ENABLE=false
 ```
 
-메모리 제한을 증가시켜 이전보다 오래 실행되는 것을 확인했습니다.
+실행 결과
 
-### 📷 MEMORY_LIMIT=512 결과
+* Heap 증가
+* Memory Cache Flushed
+* MEMORY RECOVERED
+* 종료되지 않고 정상 유지
+
+### 📷 MEMORY_LIMIT=512 실행 결과
 
 ![OOM After](screenshots/oom/03_after_512mb.png)
 
 ---
 
-# CPU Spike
+### 결론
+
+* MEMORY_LIMIT 증가 시 생존 시간이 증가함
+* 메모리 증가 패턴 자체는 계속 발생
+* 근본 원인은 Memory Leak
+
+---
+
+# CPU Spike 실험
 
 ## Before
 
@@ -405,11 +443,25 @@ export MEMORY_LIMIT=512
 export CPU_MAX_OCCUPY=10
 ```
 
-CPU 사용량이 10%에 도달하면 Cooldown이 수행됩니다.
+확인 로그
+
+```
+Current Load : 5%
+Current Load : 8%
+Current Load : 10%
+Peak reached (10%)
+Starting cooldown
+```
 
 ### 📷 CPU Cooldown
 
-![CPU Cooldown](screenshots/cpu/01_cpu_growth.png)
+![CPU Cooldown](screenshots/cpu/01_cpu_cooldown.png)
+
+---
+
+### 📷 top 명령어 확인
+
+![Top CPU](screenshots/cpu/02_top_cpu.png)
 
 ---
 
@@ -419,35 +471,83 @@ CPU 사용량이 10%에 도달하면 Cooldown이 수행됩니다.
 export CPU_MAX_OCCUPY=100
 ```
 
-CPU 사용량이 증가하다가 Watchdog 정책에 의해 종료됩니다.
+확인 로그
 
-### 📷 Watchdog SIGTERM
+```
+Current Load : 44%
 
-![Watchdog](screenshots/cpu/02_watchdog_sigterm.png)
+Current Load : 54%
 
-### 📷 CPU Monitor
+CPU Threshold Violated!
 
-![CPU Monitor](screenshots/cpu/03_monitor_top.png)
+WATCHDOG
+
+SIGTERM
+```
+
+### 📷 Watchdog 종료
+
+![Watchdog SIGTERM](screenshots/cpu/03_watchdog_sigterm.png)
 
 ---
 
-# Deadlock
+### 결과
 
-## Deadlock 발생
+* CPU_MAX_OCCUPY=10에서는 10% 도달 시 Cooldown 수행
+* CPU_MAX_OCCUPY=100에서는 CPU 사용량이 지속 증가
+* Watchdog 정책이 SIGTERM으로 프로세스를 종료
+
+---
+
+# Deadlock 실험
+
+## 환경
 
 ```bash
 export MULTI_THREAD_ENABLE=true
 ```
 
+실행 결과
+
+```
+Worker-Thread-1
+
+LOCK ACQUIRED
+
+Worker-Thread-2
+
+LOCK ACQUIRED
+
+WAITING
+
+BLOCKED
+```
+
 ### 📷 WAITING / BLOCKED
 
-![Deadlock Blocked](screenshots/deadlock/01_waiting_blocked.png)
+![Deadlock Blocked](screenshots/deadlock/01_blocked_log.png)
 
-### 📷 PID 확인
+---
+
+확인 명령어
+
+```bash
+ps -ef | grep agent
+```
+
+### 📷 PID 존재 확인
 
 ![PID Alive](screenshots/deadlock/02_pid_alive.png)
 
-### 📷 Thread 확인
+---
+
+스레드 확인
+
+```bash
+ps -L -p PID
+```
+
+### 📷 Thread 상태
 
 ![Thread State](screenshots/deadlock/03_thread_state.png)
 
@@ -459,11 +559,27 @@ export MULTI_THREAD_ENABLE=true
 export MULTI_THREAD_ENABLE=false
 ```
 
-멀티스레드를 비활성화한 후 정상적으로 실행되었습니다.
-
-### 📷 Deadlock Resolved
+### 📷 Deadlock 해결
 
 ![Deadlock Resolved](screenshots/deadlock/04_deadlock_resolved.png)
+
+---
+
+(선택) 프로세스 종료 확인
+
+### 📷 Process 종료
+
+![Process Killed](screenshots/deadlock/04_process_killed.png)
+
+---
+
+### 분석
+
+* Thread-1이 Shared_Memory_A를 점유
+* Thread-2가 Socket_Pool_B를 점유
+* 두 스레드가 서로 상대 자원을 기다리며 순환 대기(Circular Wait)가 발생
+* MULTI_THREAD_ENABLE=false 설정 후 Deadlock 없이 정상 수행됨
+
 
 ---
 
