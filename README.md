@@ -296,6 +296,175 @@ kill PID
 * 교착상태(Deadlock) 원인 분석
 * GitHub Issue 기반 장애 리포트 작성
 
+  # 프로젝트 구조
+
+```text
+agent/
+├── api_keys/
+│   └── secret.key
+├── logs/
+├── upload_files/
+└── agent-leak-app-x86
+```
+
+### 📷 프로젝트 구조
+
+![Project Structure](screenshots/setup/01_screenshot_folders.png)
+
+---
+
+# 사전 환경 구성
+
+필수 디렉터리 생성
+
+```bash
+mkdir -p ~/agent/logs
+mkdir -p ~/agent/upload_files
+mkdir -p ~/agent/api_keys
+```
+
+secret.key 생성
+
+```bash
+echo "agent_api_key_test" > ~/agent/api_keys/secret.key
+```
+
+### 📷 실행 파일 확인
+
+![Application Files](screenshots/setup/02_app_files.png)
+
+---
+
+# 환경 변수 설정
+
+```bash
+export AGENT_HOME=$HOME/agent
+export AGENT_PORT=15034
+export AGENT_UPLOAD_DIR=$AGENT_HOME/upload_files
+export AGENT_KEY_PATH=$AGENT_HOME/api_keys
+export AGENT_LOG_DIR=$HOME/agent/logs
+
+export MEMORY_LIMIT=512
+export CPU_MAX_OCCUPY=50
+export MULTI_THREAD_ENABLE=false
+```
+
+### 📷 환경 변수 설정
+
+![Environment Variables](screenshots/setup/03_environment_variables.png)
+
+---
+
+# Boot Success
+
+프로그램이 정상적으로 Boot Sequence를 통과한 화면입니다.
+
+![Boot Success](screenshots/setup/04_boot_success.png)
+
+---
+
+# OOM (Memory Leak)
+
+## Before
+
+```bash
+export MEMORY_LIMIT=256
+```
+
+메모리가 지속적으로 증가하다가 MemoryGuard가 프로세스를 종료합니다.
+
+### 📷 Memory 증가
+
+![OOM Memory Growth](screenshots/oom/01_memory_growth.png)
+
+### 📷 SELF TERMINATED
+
+![OOM Self Terminated](screenshots/oom/02_self_terminated.png)
+
+---
+
+## After
+
+```bash
+export MEMORY_LIMIT=512
+```
+
+메모리 제한을 증가시켜 이전보다 오래 실행되는 것을 확인했습니다.
+
+### 📷 MEMORY_LIMIT=512 결과
+
+![OOM After](screenshots/oom/03_after_512mb.png)
+
+---
+
+# CPU Spike
+
+## Before
+
+```bash
+export CPU_MAX_OCCUPY=10
+```
+
+CPU 사용량이 10%에 도달하면 Cooldown이 수행됩니다.
+
+### 📷 CPU Cooldown
+
+![CPU Cooldown](screenshots/cpu/01_cpu_growth.png)
+
+---
+
+## After
+
+```bash
+export CPU_MAX_OCCUPY=100
+```
+
+CPU 사용량이 증가하다가 Watchdog 정책에 의해 종료됩니다.
+
+### 📷 Watchdog SIGTERM
+
+![Watchdog](screenshots/cpu/02_watchdog_sigterm.png)
+
+### 📷 CPU Monitor
+
+![CPU Monitor](screenshots/cpu/03_monitor_top.png)
+
+---
+
+# Deadlock
+
+## Deadlock 발생
+
+```bash
+export MULTI_THREAD_ENABLE=true
+```
+
+### 📷 WAITING / BLOCKED
+
+![Deadlock Blocked](screenshots/deadlock/01_waiting_blocked.png)
+
+### 📷 PID 확인
+
+![PID Alive](screenshots/deadlock/02_pid_alive.png)
+
+### 📷 Thread 확인
+
+![Thread State](screenshots/deadlock/03_thread_state.png)
+
+---
+
+## Deadlock 해결
+
+```bash
+export MULTI_THREAD_ENABLE=false
+```
+
+멀티스레드를 비활성화한 후 정상적으로 실행되었습니다.
+
+### 📷 Deadlock Resolved
+
+![Deadlock Resolved](screenshots/deadlock/04_deadlock_resolved.png)
+
 ---
 
 # 참고
