@@ -1,11 +1,11 @@
 #!/bin/bash
 
-LOG_FILE="/var/log/agent-app/monitor.log"
+LOG_FILE="../logs/monitor.log"
 PORT="15034"
 
 echo "===== Agent Monitor ====="
 
-PID=$(pgrep -f "agent-app" | head -n 1)
+PID=$(pgrep -f "agent-leak-app" | head -n 1)
 
 if [ -n "$PID" ]; then
     echo "[OK] Agent is running (PID: $PID)"
@@ -30,6 +30,6 @@ echo "MEM Usage : ${MEM}%"
 echo "DISK Used : ${DISK}%"
 
 NOW=$(date "+%Y-%m-%d %H:%M:%S")
-echo "[$NOW] PID:$PID CPU:${CPU}% MEM:${MEM}% DISK_USED:${DISK}%" | sudo tee -a "$LOG_FILE"
+echo "[$NOW] PID:$PID CPU:${CPU}% MEM:${MEM}% DISK_USED:${DISK}%" >> "$LOG_FILE"
 
 echo "[INFO] monitor completed"
